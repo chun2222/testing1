@@ -3,7 +3,7 @@ def create_classes(db):
         __tablename__ = 'breweries'
 
         id = db.Column(db.Integer, primary_key=True)
-        name = db.Column(db.Integer)        
+        name = db.Column(db.String(256))       
         brewery_type = db.Column(db.String(256))
         address = db.Column(db.String(256))
         state = db.Column(db.String(256))
@@ -12,8 +12,11 @@ def create_classes(db):
         country = db.Column(db.String(256))
         region = db.Column(db.String(256))
         division = db.Column(db.String(256))
+        longitude = db.Column(db.Integer)
+        latitude = db.Column(db.Integer)
 
         def __repr__(self):
             return f'<Breweries {self.id}>'
 
     return Breweries
+

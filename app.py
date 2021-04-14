@@ -17,28 +17,36 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
     'DATABASE_URL', '') or "sqlite:///db.sqlite"
 
+
 # Remove tracking modifications
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-
 db = SQLAlchemy(app)
 
+"""
+To tell SQLAlchemy we’re lazy and it should teach 
+itself about the database, we use this line:
+"""
+"""
+It’s always the same, never changes. A million tables, weird names, etc etc, 
+nothing affects it. If you don’t want to list all those columns out, you’ll be using that line.
+"""
 
 Breweries = create_classes(db)
 
-# create route that renders index.html template
+# set up our route to use that template
 @app.route("/")
 def home():
-    """
-    Render the index.html template
-    """
     return render_template("index.html")
 
-def query_results_to_dicts(results):
-    return simplejson.dumps(results)
+@app.route('/mapping')
+def v_timestamp():
+    return render_template('mapping.html')
 
-@app.route("/api/all")
+@app.route("/api")
 def all():
+    """
+    list out all the dictionary
+    """
     results = db.session.query(
         Breweries.name,
         Breweries.brewery_type,
@@ -48,20 +56,24 @@ def all():
         Breweries.website_url,
         Breweries.country,
         Breweries.region,
-        Breweries.division
+        Breweries.division,
+        Breweries.longitude,
+        Breweries.latitude
     ).all()
 
-    return query_results_to_dicts(results)
+    return jsonify(results)
 
 def get_selected_region():
+    """
+    Extracting the value from the query string (/?region=West -> West)
+    """
     selected_region = request.args.get("region")
 
-    # If we receive "All" from the front-end no filtering
+    # Ignore filtering if user selected "All"
     if selected_region == "All":
         return None
-
-    # Given the characters races in the database are title cased
-    # e.g. "Orc" not "orc"
+    
+    #Make sure the selection in the proper title cased (west -> West)
     if selected_region is not None:
         selected_region = selected_region.title()
     
@@ -69,6 +81,13 @@ def get_selected_region():
 
 @app.route("/api/count_by_region")
 def count_by_region():
+    """
+    Count the number of breweries and groupby region
+    """
+    """ 
+    {"region": "Midwest", 
+    "total": 1292}
+    """
     results = db.session.query(
         Breweries.region,
         func.count(Breweries.region).label("total")
@@ -78,17 +97,24 @@ def count_by_region():
         Breweries.region
     ).all()
 
-    return query_results_to_dicts(results)
-
+    return jsonify(results)
 
 @app.route("/api/count_by/<count_by>", defaults={'optional_count_by': None})
 @app.route("/api/count_by/<count_by>/<optional_count_by>")
 def count_by(count_by, optional_count_by=None):
-
-    # first let's check if we need to filter
+    """
+    {"region": "Midwest", 
+    "total": 1292}
+    """
+    """
+    {"brewery_type": "brewpub", 
+    "region": "Midwest", 
+    "total": 561}
+    """
+    # check is there any existing filter
     selected_region = get_selected_region()
    
-    # let's first handle the case we there is no `optional_count_by`
+    # Only count_by (/api/count_by/<count_by>)
     if optional_count_by is None:
         results = db.session.query(
             getattr(Breweries, count_by),
@@ -124,13 +150,12 @@ def count_by(count_by, optional_count_by=None):
             getattr(Breweries, optional_count_by),
         ).all()
 
-    return query_results_to_dicts(results)
+    return jsonify(results)
 
 
 def get_column_values(for_column, selected_region = None):
     """
-    Let's get the unique distinct values from column in
-    our database, optionally filtering by query string.
+    get unique distinct values from column, filtering by query string
     """
     
     value_query = db.session.query(
@@ -149,7 +174,19 @@ def get_column_values(for_column, selected_region = None):
 @app.route("/api/values/<for_column>/<group_by>")
 @app.route("/api/values/<for_column>/", defaults={'group_by': None})
 def values(for_column, group_by = None):
-  
+    """
+    group by the selected value with other column
+
+    For example http://localhost:5000/api/values/region/
+    [
+     "Midwest", 
+     "Northeast", 
+     "South", 
+     "West"
+    ]
+
+    Whereas http://localhost:5000/api/values/region/brewery_type
+    """
 
     selected_region = get_selected_region()
 
@@ -179,42 +216,27 @@ def values(for_column, group_by = None):
     for group in group_by_values:
         values_for_groupby[group] = [x[1] for x in results if x[0] == group]
 
-    return query_results_to_dicts(values_for_groupby)
+    return jsonify(values_for_groupby)
+
 
 @app.route("/api/where/<region>")
 def where(region):
     """
-    This will demonstrate running a SQL Query using the SQLAlchemy 
-    execute method. 
-
-    http://localhost:5000/api/where/the%20barrens will return:
-    [
-        {
-            "char_class": "Hunter", 
-            "guild": "Guild Guild -1", 
-            "id": 6, 
-            "level": 16, 
-            "race": "Orc", 
-            "region": "The Barrens"
-        }, 
-        {
-            "char_class": "Warlock", 
-            "guild": "Guild Guild -1", 
-            "id": 7, 
-            "level": 18, 
-            "race": "Orc", 
-            "region": "The Barrens"
-        }
-        ...
-    ] 
+    list out the relevant information with the input region
     """
-
     """
-    Because we using user input we need to a VERY 
-    simple attempt to mitigate SQL injection
-    using SQLAlchemy sql.text and bindparams
-    
-    https://docs.sqlalchemy.org/en/13/core/tutorial.html#specifying-bound-parameter-behaviors
+    {"address": "62950 NE 18th St Bend Oregon 97701", 
+    "brewery_type": "large", 
+    "country": "United States", 
+    "division": "Pacific", 
+    "id": 2, 
+    "latitude": 44.0912109, 
+    "longitude": -121.2809536, 
+    "name": "10 Barrel Brewing Co - Bend Pub", 
+    "phone": "5415851007", 
+    "region": "West", 
+    "state": "Oregon", 
+    "website_url": "Not Available"}
     """
     results = db.engine.execute(text("""
         SELECT * FROM breweries 
@@ -222,17 +244,9 @@ def where(region):
     """).bindparams(
         region=region.upper().strip()
     ))
-    
-    """
-    result will be a ResultProxy, see:
-    https://docs.sqlalchemy.org/en/13/core/connections.html?highlight=execute#sqlalchemy.engine.Engine.execute
 
-    so to convert into something that can be json 
-    serialisable we need to iterate over each item 
-    in the results and convert into a dictionary 
-    and then jsonify the result.
-    """
     return jsonify([dict(row) for row in results])
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
+

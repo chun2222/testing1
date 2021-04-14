@@ -1,0 +1,26 @@
+-- Create tables for data to be loaded into
+CREATE TABLE persons (
+    obdb_id VARCHAR,
+    name VARCHAR,
+    brewery_type VARCHAR,
+    street VARCHAR,
+    address_2 VARCHAR,
+    address_3 VARCHAR, 
+    city VARCHAR,
+    state VARCHAR,
+    county_province VARCHAR,
+    postal_code VARCHAR,
+    website_url VARCHAR,
+    phone VARCHAR,
+    created_at VARCHAR,
+    updated_at VARCHAR,
+    country VARCHAR,
+    longitude VARCHAR,
+    latitude VARCHAR,
+    tags VARCHAR,
+    region_delete VARCHAR,
+    state2 VARCHAR,
+    State_Code VARCHAR,
+    Region VARCHAR,
+    Division VARCHAR
+);
